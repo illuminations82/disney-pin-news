@@ -44,5 +44,14 @@
       "url": "https://insidethemagic.net/feed/",
       "filter": true
     }
+  ],
+  "instagram_accounts": [
+    "disneypinsblog",
+    "disneypins",
+    "wdwnewstoday",
+    "disneystore",
+    "disneyparks",
+    "pinforum",
+    "dlp.pintrading"
   ]
 }
