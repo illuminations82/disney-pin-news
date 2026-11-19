@@ -13,7 +13,7 @@ Steps:
 
 3. Gather pin news from roughly the last 24 hours:
 
-   a. Instagram, through the Zapier MCP tools (names start with `mcp__zapier`). If those tools are not available, or Instagram for Business is not connected in Zapier, skip Instagram and say so in your final summary.
+   a. Instagram, through the Zapier MCP tools (names start with `mcp__Zapier-MCP__`). If those tools are not available, or Instagram for Business is not connected in Zapier, skip Instagram and say so in your final summary.
       - Call inspect_zapier_actions to find the Instagram for Business app and its raw API request action (`_zap_raw_request`).
       - Find the connected account's Instagram user id: GET https://graph.facebook.com/v21.0/me/accounts?fields=instagram_business_account{id,username}
       - For each username in `instagram_accounts` in sources.json, use Business Discovery:
