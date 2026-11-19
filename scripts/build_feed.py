@@ -78,25 +78,69 @@ def fetch(url: str) -> bytes:
         return r.read()
 
 
-OG_RE = [
-    re.compile(r'<meta[^>]+(?:property|name)=["\'](?:og:image|og:image:url|twitter:image)["\'][^>]*content=["\']([^"\']+)', re.I),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](?:og:image|og:image:url|twitter:image)["\']', re.I),
-]
+def _meta(head: str, names: str) -> str:
+    for rx in (rf'<meta[^>]+(?:property|name)=["\'](?:{names})["\'][^>]*content=["\']([^"\']+)',
+               rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](?:{names})["\']'):
+        m = re.search(rx, head, re.I)
+        if m:
+            return html.unescape(m.group(1)).strip()
+    return ""
 
 
-def og_image(url: str) -> str:
-    """Return the page's og:image / twitter:image URL, or "" if none or unreachable."""
+def page_meta(url: str) -> dict:
+    """The page's preview image and description (og:/twitter: tags), "" when missing."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html"})
         with urllib.request.urlopen(req, timeout=15) as r:
             head = r.read(400_000).decode("utf-8", "ignore")
     except Exception:
-        return ""
-    for rx in OG_RE:
-        m = rx.search(head)
-        if m and m.group(1).startswith("http"):
-            return html.unescape(m.group(1))
-    return ""
+        return {"image": "", "description": ""}
+    image = _meta(head, "og:image|og:image:url|twitter:image")
+    return {"image": image if image.startswith("http") else "",
+            "description": _meta(head, "og:description|twitter:description|description")}
+
+
+def og_image(url: str) -> str:
+    """Return the page's og:image / twitter:image URL, or "" if none or unreachable."""
+    return page_meta(url)["image"]
+
+
+# ---------------------------------------------------------------- summaries
+SUMMARY_VERSION = 2
+SKIP_PARA = re.compile(r"^(photo|image|credit|source|via|\(?please note|disclosure|this (post|article) "
+                       r"(may )?contains? affiliate|click here|shop (now|here)|related:|read more)", re.I)
+SKIP_SENTENCE = re.compile(r"click here|affiliate|while supplies last|subscribe|follow us|"
+                           r"sign up for|check out our|use code", re.I)
+
+
+def clean_text(s: str) -> str:
+    s = strip_html(s)
+    s = re.sub(r"\s+([,.!?;:)])", r"\1", s)          # "BoxLunch !" -> "BoxLunch!"
+    return re.sub(r"\(\s+", "(", s).strip()
+
+
+def lead_summary(body_html: str, title: str, limit: int = 420) -> str:
+    """Two or three opening sentences of the article, minus headline repeats,
+    photo credits, shopping and affiliate boilerplate."""
+    paras = re.findall(r"<p[^>]*>(.*?)</p>", body_html or "", re.S | re.I) or [body_html or ""]
+    tkey = re.sub(r"\W+", "", title.lower())
+    out: list[str] = []
+    for p in paras:
+        text = clean_text(p)
+        if len(text) < 30 or SKIP_PARA.match(text):
+            continue
+        if tkey and text.lower().startswith(title.lower().strip()[:40]):
+            text = text[len(title.strip()):].strip(" -:|") if len(text) > len(title) + 30 else ""
+        for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"\'“])", text):
+            sent = sent.strip()
+            if not sent or SKIP_SENTENCE.search(sent) or re.sub(r"\W+", "", sent.lower()) == tkey:
+                continue
+            if out and len(" ".join(out)) + len(sent) > limit:
+                return " ".join(out)
+            out.append(sent if len(sent) <= limit else sent[:limit].rsplit(" ", 1)[0] + "…")
+        if len(" ".join(out)) >= limit * 0.6:
+            break
+    return " ".join(out)
 
 
 def text_of(el, path: str) -> str:
@@ -162,7 +206,8 @@ def finish_item(it: dict) -> dict | None:
         "title": it["title"].strip(),
         "link": it["link"].strip(),
         "date": d.isoformat(),
-        "summary": excerpt(it.get("body") or ""),
+        "summary": lead_summary(it.get("body") or "", it["title"]),
+        "summary_v": SUMMARY_VERSION,
         "image": image,
         "source": it["source"],
         "kind": "article",
@@ -310,7 +355,8 @@ def rss(cfg: dict, items: list[dict], site_url: str) -> str:
             desc += it["html"]
         else:
             desc += f"<p>{html.escape(it['summary'])}</p>"
-            desc += f'<p>Source: <a href="{html.escape(it["link"])}">{html.escape(it["source"])}</a></p>'
+            desc += (f'<p><a href="{html.escape(it["link"])}">Read the full article</a> '
+                     f'at {html.escape(it["source"])}</p>')
         ET.SubElement(e, "description").text = desc
         if it.get("image"):
             ET.SubElement(e, f"{{{NS['media']}}}content", {"url": it["image"], "medium": "image"})
@@ -401,8 +447,11 @@ def main() -> int:
                 kept += 1
             elif it:
                 # refresh text, but keep the original date and any image already found
-                archive[it["id"]].update({k: v for k, v in it.items()
-                                          if k != "date" and not (k == "image" and not v)})
+                # (a summary taken from the page description beats a thin feed lead)
+                old = archive[it["id"]]
+                old.update({k: v for k, v in it.items()
+                            if k != "date" and not (k == "image" and not v)
+                            and not (k == "summary" and len(v) < 80 and len(old.get("summary") or "") > len(v))})
         print(f"  {src['name']}: {len(raw_items)} items, {kept} new")
 
     # de-duplicate the same story syndicated under slightly different URLs by title
@@ -418,15 +467,28 @@ def main() -> int:
 
     # Articles whose feed carries no picture (e.g. Laughing Place): use the page's og:image.
     # Each article is looked up once; image_checked stops repeat fetches on later runs.
+    # Fill gaps from the article page itself: a picture when the feed has none
+    # (e.g. Laughing Place), and the publisher's description when the feed text
+    # gave no usable summary or the summary predates the current summarizer.
     lookups = 0
     for it in articles:
-        if it.get("image") or it.get("image_checked") or lookups >= 60:
+        need_img = not it.get("image") and not it.get("image_checked")
+        need_sum = (len(it.get("summary") or "") < 80 or it.get("summary_v") != SUMMARY_VERSION) \
+            and not it.get("meta_checked")
+        if not (need_img or need_sum) or lookups >= 80:
             continue
-        it["image"] = og_image(it["link"])
-        it["image_checked"] = True
+        meta = page_meta(it["link"])
         lookups += 1
+        it["image_checked"] = it["meta_checked"] = True
+        if need_img and meta["image"]:
+            it["image"] = meta["image"]
+        desc = clean_text(meta["description"])
+        if need_sum and len(desc) > len(it.get("summary") or "") * 0.6 and len(desc) >= 60:
+            it["summary"] = desc
+        it["summary_v"] = SUMMARY_VERSION
     if lookups:
-        print(f"  og:image lookups: {lookups}, found {sum(1 for it in articles if it.get('image'))}/{len(articles)} with images")
+        print(f"  page lookups: {lookups}; {sum(1 for it in articles if it.get('image'))}/{len(articles)} "
+              f"with images, {sum(1 for it in articles if len(it.get('summary') or '') >= 60)} with summaries")
 
     ARCHIVE.parent.mkdir(exist_ok=True)
     ARCHIVE.write_text(json.dumps(articles, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
