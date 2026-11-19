@@ -78,6 +78,27 @@ def fetch(url: str) -> bytes:
         return r.read()
 
 
+OG_RE = [
+    re.compile(r'<meta[^>]+(?:property|name)=["\'](?:og:image|og:image:url|twitter:image)["\'][^>]*content=["\']([^"\']+)', re.I),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](?:og:image|og:image:url|twitter:image)["\']', re.I),
+]
+
+
+def og_image(url: str) -> str:
+    """Return the page's og:image / twitter:image URL, or "" if none or unreachable."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            head = r.read(400_000).decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    for rx in OG_RE:
+        m = rx.search(head)
+        if m and m.group(1).startswith("http"):
+            return html.unescape(m.group(1))
+    return ""
+
+
 def text_of(el, path: str) -> str:
     found = el.find(path, NS)
     return (found.text or "").strip() if found is not None and found.text else ""
@@ -151,6 +172,9 @@ def finish_item(it: dict) -> dict | None:
 # ---------------------------------------------------------------- daily summaries
 def md_inline(s: str) -> str:
     s = html.escape(s, quote=False)
+    # inline images (used at the start of roundup bullets) render as a picture above the text
+    s = re.sub(r"!\[([^\]]*)\]\((https?://[^)\s]+)\)\s*",
+               r'<img src="\2" alt="\1" style="max-width:100%;max-height:360px;display:block;margin:6px 0"/>', s)
     s = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
     s = re.sub(r"(?<!\*)\*(?!\*)(.+?)\*", r"<em>\1</em>", s)
@@ -264,6 +288,7 @@ def rss(cfg: dict, items: list[dict], site_url: str) -> str:
         ET.SubElement(e, "description").text = desc
         if it.get("image"):
             ET.SubElement(e, f"{{{NS['media']}}}content", {"url": it["image"], "medium": "image"})
+            ET.SubElement(e, f"{{{NS['media']}}}thumbnail", {"url": it["image"]})
     ET.indent(root)
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode") + "\n"
 
@@ -349,7 +374,9 @@ def main() -> int:
                 archive[it["id"]] = it
                 kept += 1
             elif it:
-                archive[it["id"]].update({k: v for k, v in it.items() if k != "date"})
+                # refresh text, but keep the original date and any image already found
+                archive[it["id"]].update({k: v for k, v in it.items()
+                                          if k != "date" and not (k == "image" and not v)})
         print(f"  {src['name']}: {len(raw_items)} items, {kept} new")
 
     # de-duplicate the same story syndicated under slightly different URLs by title
@@ -362,6 +389,18 @@ def main() -> int:
             continue
         seen_titles.add(key)
         articles.append(it)
+
+    # Articles whose feed carries no picture (e.g. Laughing Place): use the page's og:image.
+    # Each article is looked up once; image_checked stops repeat fetches on later runs.
+    lookups = 0
+    for it in articles:
+        if it.get("image") or it.get("image_checked") or lookups >= 60:
+            continue
+        it["image"] = og_image(it["link"])
+        it["image_checked"] = True
+        lookups += 1
+    if lookups:
+        print(f"  og:image lookups: {lookups}, found {sum(1 for it in articles if it.get('image'))}/{len(articles)} with images")
 
     ARCHIVE.parent.mkdir(exist_ok=True)
     ARCHIVE.write_text(json.dumps(articles, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")

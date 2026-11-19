@@ -13,22 +13,24 @@ date: 2026-11-19T13:00:00Z
 ---
 
 ## New releases
-- **Pin name** - where / when, price, edition size. [Source](https://example.com/post)
+- ![Pin name](https://example.com/pin.jpg) **Pin name** - where / when, price, edition size. [Source](https://example.com/post)
 
 ## Events and announcements
-- ...
+- ![Event](https://example.com/event.jpg) **Event name** - date, place, how to get in. [Source](https://example.com/post)
 
-## From Instagram and social
-- **@account**: what they showed or announced. [Post](https://www.instagram.com/p/...)
-
-![optional image](https://example.com/image.jpg)
+## From Instagram
+- ![Pin](https://scontent.cdninstagram.com/...) **@account**: what they showed or announced. [Post](https://www.instagram.com/p/...)
 ```
 
 All front-matter fields are optional: the title defaults to
 "Daily Disney Pin Roundup - <date>" and the date to noon UTC that day.
 
 Supported Markdown: `#`/`##`/`###` headings, `-` bullet lists, `**bold**`,
-`*italic*`, `[links](https://...)`, and an image on its own line.
+`*italic*`, `[links](https://...)`, and images (`![alt](https://...)`), either
+on their own line or at the start of a bullet. Start each bullet with a picture
+of the pin when one exists, so the feed can be skimmed by image; the first
+image also becomes the roundup's thumbnail. `python3.12 scripts/og_image.py <url>`
+prints a page's preview image.
 
 ## What goes in a roundup
 

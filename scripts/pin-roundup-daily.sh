@@ -38,6 +38,7 @@ ALLOWED=(
   "Bash(git pull:*)" "Bash(git add:*)" "Bash(git commit:*)" "Bash(git push:*)"
   "Bash(git status:*)" "Bash(git log:*)" "Bash(git diff:*)"
   "Bash(reddit-pp-cli:*)" "Bash(date:*)" "Bash(ls:*)"
+  "Bash(python3.12 scripts/og_image.py:*)"
   "mcp__Zapier-MCP__inspect_zapier_actions"
   "mcp__Zapier-MCP__execute_zapier_read_action"
   "mcp__Zapier-MCP__execute_zapier_write_action"
