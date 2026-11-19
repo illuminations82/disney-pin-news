@@ -221,6 +221,32 @@ def md_to_html(md: str) -> str:
     return "\n".join(out)
 
 
+EXPIRING_IMG_RE = re.compile(r'src="(https://[^"]*(?:cdninstagram\.com|fbcdn\.net)[^"]*)"')
+
+
+def cache_expiring_images(body_html: str, site_url: str) -> str:
+    """Instagram/Facebook CDN links are signed and expire within days, so keep a
+    copy of each one under docs/img/ and point the roundup at that copy."""
+    import hashlib
+
+    img_dir = OUT_DIR / "img"
+
+    def swap(m: re.Match) -> str:
+        url = html.unescape(m.group(1))
+        name = hashlib.sha1(url.split("?")[0].encode()).hexdigest()[:16] + ".jpg"
+        path = img_dir / name
+        if not path.exists():
+            try:
+                img_dir.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(fetch(url))
+            except Exception as exc:
+                print(f"  ! could not cache image {url[:80]}: {exc}", file=sys.stderr)
+                return m.group(0)
+        return f'src="{site_url}img/{name}"' if site_url else m.group(0)
+
+    return EXPIRING_IMG_RE.sub(swap, body_html)
+
+
 def load_daily(site_url: str) -> list[dict]:
     items = []
     for p in sorted(DAILY_DIR.glob("[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md")):
@@ -235,7 +261,7 @@ def load_daily(site_url: str) -> list[dict]:
         day = p.stem
         published = parse_date(meta.get("date")) or datetime.fromisoformat(day + "T12:00:00+00:00")
         nice = datetime.fromisoformat(day).strftime("%B %-d, %Y")
-        body_html = md_to_html(body)
+        body_html = cache_expiring_images(md_to_html(body), site_url)
         m = IMG_RE.search(body_html)
         items.append({
             "id": f"daily-{day}",

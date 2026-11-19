@@ -13,14 +13,7 @@ Steps:
 
 3. Gather pin news from roughly the last 24 hours:
 
-   a. Instagram, through the Zapier MCP tools (names start with `mcp__Zapier-MCP__`). If those tools are not available, or Instagram for Business is not connected in Zapier, skip Instagram and say so in your final summary.
-      - Call inspect_zapier_actions to find the Instagram for Business app and its raw API request action (`_zap_raw_request`).
-      - Find the connected account's Instagram user id: GET https://graph.facebook.com/v21.0/me/accounts?fields=instagram_business_account{id,username}
-      - For each username in `instagram_accounts` in sources.json, use Business Discovery:
-        GET https://graph.facebook.com/v21.0/<ig-user-id>?fields=business_discovery.username(<username>){username,media.limit(12){caption,permalink,timestamp,media_type,media_url,thumbnail_url}}
-        If a newer Graph API version is required, use it. Accounts that are personal (not business/creator) or renamed will error; note them and move on.
-      - Keep only posts from the last ~30 hours that are about pins (releases, events, previews, restocks, sellouts, fakes).
-      - Never use the publish or write actions to change anything on Instagram. Only GET requests.
+   a. Instagram: run `python3.12 scripts/instagram_posts.py --hours 30`. It prints JSON with recent posts (username, timestamp, permalink, caption, image) from the accounts in sources.json, plus per-account status and `token_days_left`. Keep only posts about pins (releases, previews, events, restocks, sellouts, fakes); most posts from general Disney accounts are not about pins. Link each item to its permalink and use its `image` as the bullet's picture. If the script prints an error, skip Instagram and report the error. If `token_days_left` is below 10, say so prominently in your final summary ("Instagram token expires in N days: re-run python3.12 scripts/instagram_setup.py").
 
    b. Reddit r/DisneyPins with the `reddit-pp-cli` command (see the pp-reddit skill): new posts and top posts of the day. Keep release announcements, event news, restocks, and fake/scrapper warnings. Skip personal trade requests and collection photos. Link to the reddit.com post.
 

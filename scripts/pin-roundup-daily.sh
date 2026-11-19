@@ -5,8 +5,9 @@
 #
 # TOKEN: shared durable token from `claude setup-token`, at
 # ~/.config/claude-kanban/oauth-token, exported as CLAUDE_CODE_OAUTH_TOKEN.
-# Instagram comes from the Zapier MCP server added to the CLI at user scope as
-# "Zapier-MCP" (claude mcp add -s user ...); without it the run skips Instagram.
+# Instagram comes from scripts/instagram_posts.py (Meta Business Discovery via
+# the "Disney Pin News Reader" Meta app; token in the login Keychain, set up
+# with scripts/instagram_setup.py). Without it the run skips Instagram.
 
 set -euo pipefail
 
@@ -38,10 +39,7 @@ ALLOWED=(
   "Bash(git pull:*)" "Bash(git add:*)" "Bash(git commit:*)" "Bash(git push:*)"
   "Bash(git status:*)" "Bash(git log:*)" "Bash(git diff:*)"
   "Bash(reddit-pp-cli:*)" "Bash(date:*)" "Bash(ls:*)"
-  "Bash(python3.12 scripts/og_image.py:*)"
-  "mcp__Zapier-MCP__inspect_zapier_actions"
-  "mcp__Zapier-MCP__execute_zapier_read_action"
-  "mcp__Zapier-MCP__execute_zapier_write_action"
+  "Bash(python3.12 scripts/og_image.py:*)" "Bash(python3.12 scripts/instagram_posts.py:*)"
 )
 
 set +e
