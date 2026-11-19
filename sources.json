@@ -1,0 +1,48 @@
+{
+  "feed": {
+    "title": "Disney Pin News",
+    "description": "Disney pin releases, pin trading events and collector news, gathered from pin blogs plus a hand-curated daily summary.",
+    "language": "en-us",
+    "max_items_in_feed": 150,
+    "archive_days": 90,
+    "site_url": "https://illuminations82.github.io/disney-pin-news/"
+  },
+  "keyword_filter": "\\bpins?\\b|pin[- ]trading|lanyard",
+  "sources": [
+    {
+      "name": "Disney Pins Blog",
+      "url": "https://disneypinsblog.com/blogs/news.atom",
+      "filter": false
+    },
+    {
+      "name": "Laughing Place",
+      "url": "https://www.laughingplace.com/w/tag/pins/feed/",
+      "filter": false
+    },
+    {
+      "name": "MickeyBlog",
+      "url": "https://www.mickeyblog.com/tag/disney-pins/feed/",
+      "filter": false
+    },
+    {
+      "name": "BlogMickey",
+      "url": "https://blogmickey.com/tag/pins/feed/",
+      "filter": false
+    },
+    {
+      "name": "WDW News Today",
+      "url": "https://wdwnt.com/feed/",
+      "filter": true
+    },
+    {
+      "name": "Disney Parks Blog",
+      "url": "https://disneyparks.disney.go.com/blog/feed/",
+      "filter": true
+    },
+    {
+      "name": "Inside the Magic",
+      "url": "https://insidethemagic.net/feed/",
+      "filter": true
+    }
+  ]
+}
